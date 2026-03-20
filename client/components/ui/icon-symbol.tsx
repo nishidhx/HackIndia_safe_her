@@ -20,7 +20,9 @@ const MAPPING = {
   'chevron.right': 'chevron-right',
   'gearshape.fill': 'settings',
   'exclamationmark.triangle.fill': 'warning',
-  'map.fill': 'map',              // ← map icon
+  'map.fill': 'map',
+  'bubble.left.fill': 'chat-bubble',
+  'shield.fill': 'security',
 } as IconMapping;
 /**
  * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.

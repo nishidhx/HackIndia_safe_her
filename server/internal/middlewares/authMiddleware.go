@@ -2,7 +2,6 @@ package middlewares
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"server/pkg/jwt"
@@ -10,7 +9,7 @@ import (
 
 type contextKey string
 
-const userClaims contextKey = "userClaims"
+const UserClaimsKey contextKey = "userClaims"
 
 func CheckUserAuthetic(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -21,23 +20,30 @@ func CheckUserAuthetic(next http.Handler) http.Handler {
 		if err != nil {
 			if err == http.ErrNoCookie {
 				log.Println("Token not found")
-				fmt.Fprintln(writer, "no session_token found in the cookie user not authorized")
+				http.Error(writer, "no session_token found in the cookie user not authorized", http.StatusUnauthorized)
+				return
 			}
-		} else {
-			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			http.Error(writer, "bad request", http.StatusBadRequest)
 			log.Printf("Error reading cookies: %v", err)
+			return
 		}
 
 		tokenService, err := jwt.NewTokenService("SAFE_HER_SECRET")
+		if err != nil {
+			http.Error(writer, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
 		tokenPayloadClaims, err := tokenService.ValidateUserAuthicationToken(session_token.Value)
 
 		if err != nil {
 			log.Printf("something went wrong invalid token found: %v", err)
 			http.Error(writer, "invalid token", http.StatusUnauthorized)
+			return
 		}
 
 		// settings a context for the new request body
-		new_request_ctx := context.WithValue(request.Context(), userClaims, tokenPayloadClaims)
+		new_request_ctx := context.WithValue(request.Context(), UserClaimsKey, tokenPayloadClaims)
 
 		// => creating a new request body with new context
 		request = request.WithContext(new_request_ctx)

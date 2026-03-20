@@ -35,6 +35,7 @@ package routes
 import (
 	"net/http"
 	"server/internal/handlers"
+	"server/internal/middlewares"
 	"server/internal/websocket"
 
 	"github.com/gorilla/mux"
@@ -92,8 +93,8 @@ func SetupRoutes(db *gorm.DB) *mux.Router {
 	// =========================
 	apiRouter := router.PathPrefix("/api").Subrouter()
 
-	// Future: protect with middleware
-	// apiRouter.Use(middlewares.CheckUserAuth)
+	// Protect with auth middleware
+	apiRouter.Use(middlewares.CheckUserAuthetic)
 
 	// Risk routes
 	apiRouter.HandleFunc("/risk/score", riskHandler.GetRiskScore).Methods(http.MethodPost, http.MethodOptions)
@@ -101,6 +102,12 @@ func SetupRoutes(db *gorm.DB) *mux.Router {
 
 	// Chat / AI assistant (NEW)
 	apiRouter.HandleFunc("/risk/chat", riskHandler.GetRiskMessage).Methods(http.MethodPost, http.MethodOptions)
+
+	// Save Risk Zone
+	apiRouter.HandleFunc("/risk/zone", riskHandler.AddRiskZone).Methods(http.MethodPost, http.MethodOptions)
+
+	// Save Incident
+	apiRouter.HandleFunc("/risk/incident", riskHandler.AddIncident).Methods(http.MethodPost, http.MethodOptions)
 
 	// =========================
 	// WebSocket

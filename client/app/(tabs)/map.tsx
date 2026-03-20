@@ -118,25 +118,62 @@ export default function Map() {
     setModalVisible(true);
   };
 
-  const handleSubmit = () => {
+  const BASE_URL = "https://winfred-bearable-winterishly.ngrok-free.dev";
+
+  const severityToInt = (sev: string) => {
+    switch (sev) {
+      case 'low': return 1;
+      case 'medium': return 2;
+      case 'high': return 3;
+      case 'critical': return 4;
+      default: return 1;
+    }
+  };
+
+  const handleSubmit = async () => {
     if (!incidentType) {
       Alert.alert("Required", "Please select an incident type.");
       return;
     }
 
     if (pendingPoint) {
-      // Adding a new point
-      setUnsafePoints((prev) => [
-        ...prev,
-        {
+      try {
+        const payload = {
+          user_id: "default-user-id", // Hardcoded until explicit Auth is merged
           latitude: pendingPoint.latitude,
           longitude: pendingPoint.longitude,
-          weight: 1,
-          description,
-          severity,
-          incidentType,
-        },
-      ]);
+          type: incidentType,
+          description: description,
+          severity: severityToInt(severity ?? "low"),
+        };
+
+        const response = await fetch(`${BASE_URL}/api/risk/incident`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to report");
+        }
+
+        // Adding a new point
+        setUnsafePoints((prev) => [
+          ...prev,
+          {
+            latitude: pendingPoint.latitude,
+            longitude: pendingPoint.longitude,
+            weight: 1,
+            description,
+            severity,
+            incidentType,
+          },
+        ]);
+        Alert.alert("Reported", "Incident successfully stored on servers");
+      } catch (err) {
+        Alert.alert("Error", "Could not submit incident to the server");
+        return;
+      }
     } else if (selectedIndex !== null) {
       // Updating existing point
       setUnsafePoints((prev) =>

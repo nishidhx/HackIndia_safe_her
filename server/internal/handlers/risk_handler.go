@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"server/internal/ai"
+	"server/internal/middlewares"
+	"server/pkg/jwt"
 	"server/services"
 
 	"gorm.io/gorm"
@@ -11,6 +13,7 @@ import (
 
 type RiskHandler struct {
 	service *services.RiskService
+	db      *gorm.DB
 }
 
 func NewRiskHandler(db *gorm.DB) *RiskHandler {
@@ -22,6 +25,7 @@ func NewRiskHandler(db *gorm.DB) *RiskHandler {
 
 	return &RiskHandler{
 		service: riskService,
+		db:      db,
 	}
 }
 
@@ -90,4 +94,83 @@ func (h *RiskHandler) GetRiskMessage(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message": response,
 	})
+}
+
+func (h *RiskHandler) AddRiskZone(w http.ResponseWriter, r *http.Request) {
+	// Import models inline-style or expect goimports to fix it if running an IDE.
+	// We'll decode a RiskRequest structurally and move it to models below
+	var req RiskRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
+	}
+
+	if req.Latitude == 0 && req.Longitude == 0 {
+		http.Error(w, "Valid Latitude and Longitude are required", http.StatusBadRequest)
+		return
+	}
+
+	// We create a map to avoid importing models due to possible circular dependency or missing import
+	// Let's rely on gorm maps or struct if models is accessible. I will just create a struct for it.
+	zone := map[string]interface{}{
+		"latitude":  req.Latitude,
+		"longitude": req.Longitude,
+	}
+
+	if err := h.db.Table("risk_zones").Create(&zone).Error; err != nil {
+		http.Error(w, "Failed to store risk zone in DB", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":  "success",
+		"message": "Risk zone added",
+	})
+}
+
+type IncidentRequest struct {
+	UserID      string  `json:"user_id"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
+	Type        string  `json:"type"`
+	Description string  `json:"description"`
+	Severity    int     `json:"severity"`
+}
+
+func (h *RiskHandler) AddIncident(w http.ResponseWriter, r *http.Request) {
+	var req IncidentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
+
+		claims, ok := r.Context().Value(middlewares.UserClaimsKey).(*jwt.TokenPayload)
+		if !ok || claims == nil {
+			http.Error(w, "Unauthorized: missing valid token claims", http.StatusUnauthorized)
+			return
+		}
+		userId := claims.UserID
+
+		incident := map[string]interface{}{
+			"user_id":     userId,
+			"latitude":    req.Latitude,
+			"longitude":   req.Longitude,
+			"type":        req.Type,
+			"description": req.Description,
+			"severity":    req.Severity,
+		}
+
+		if err := h.db.Table("incidents").Create(&incident).Error; err != nil {
+			http.Error(w, "Failed to store incident in DB", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "success",
+			"message": "Incident reported",
+		})
+	}
 }
