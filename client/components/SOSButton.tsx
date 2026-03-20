@@ -1,5 +1,6 @@
 import * as Location from "expo-location";
 import * as SMS from "expo-sms";
+import * as SecureStore from "expo-secure-store";
 import React from "react";
 import {
   Alert,
@@ -26,7 +27,26 @@ export default function SOSButton() {
       const { latitude, longitude } = loc.coords;
 
       const link = `https://www.google.com/maps?q=${latitude},${longitude}`;
-      const message = `EMERGENCY!\nMy location:\n${link}`;
+      
+      const savedName = await SecureStore.getItemAsync('settings_name');
+      const nameStr = savedName ? `This is ${savedName}. ` : "";
+      const message = `EMERGENCY! ${nameStr}My location:\n${link}`;
+
+      let phoneNumbers = ["919217672083"]; // fallback
+      let primaryPhone = "919217672083";
+
+      const savedContacts = await SecureStore.getItemAsync('settings_contacts');
+      if (savedContacts) {
+        try {
+          const parsed = JSON.parse(savedContacts);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            phoneNumbers = parsed.map((c: any) => c.phone.replace(/[^\d+]/g, ''));
+            primaryPhone = parsed[0].phone.replace(/[^\d+]/g, '');
+          }
+        } catch (e) {
+          console.error("Failed to parse contacts");
+        }
+      }
 
       // Check if SMS is available
       const isAvailable = await SMS.isAvailableAsync();
@@ -35,10 +55,10 @@ export default function SOSButton() {
         return;
       }
 
-      await SMS.sendSMSAsync(["919217672083"], message);
+      await SMS.sendSMSAsync(phoneNumbers, message);
 
       // Call (opens dialer)
-      Linking.openURL("tel:919217672083");
+      Linking.openURL(`tel:${primaryPhone.replace(/\s+/g, '')}`);
     } catch (err) {
       console.log(err);
       Alert.alert("Error sending SOS");

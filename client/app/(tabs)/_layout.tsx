@@ -44,6 +44,15 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="help"
+        options={{
+          title: "Help Chat",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="bubble.left.fill" color={color} />
+          ),
+        }}
+      />
 
 
       <Tabs.Screen

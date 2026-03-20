@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as SecureStore from "expo-secure-store";
 
 interface EmergencyContact {
   id: string;
@@ -30,21 +31,76 @@ export default function Settings() {
   const [addingContact, setAddingContact] = useState(false);
   const [newContact, setNewContact] = useState({ name: "", phone: "", relationship: "" });
 
-  const addContact = () => {
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const savedName = await SecureStore.getItemAsync("settings_name");
+        if (savedName) setName(savedName);
+
+        const savedPhone = await SecureStore.getItemAsync("settings_phone");
+        if (savedPhone) setPhone(savedPhone);
+
+        const savedContacts = await SecureStore.getItemAsync("settings_contacts");
+        if (savedContacts) setContacts(JSON.parse(savedContacts));
+
+        const savedVibration = await SecureStore.getItemAsync("settings_vibration");
+        if (savedVibration !== null) setSosVibration(savedVibration === "true");
+
+        const savedLocation = await SecureStore.getItemAsync("settings_location");
+        if (savedLocation !== null) setLocationSharing(savedLocation === "true");
+      } catch (error) {
+        console.error("Failed to load settings", error);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  const saveProfile = async () => {
+    try {
+      await SecureStore.setItemAsync("settings_name", name);
+      await SecureStore.setItemAsync("settings_phone", phone);
+      Alert.alert("Success", "Profile saved!");
+    } catch (error) {
+      Alert.alert("Error", "Failed to save profile");
+    }
+  };
+
+  const addContact = async () => {
     if (!newContact.name || !newContact.phone) {
       Alert.alert("Error", "Name and phone are required");
       return;
     }
-    setContacts((prev) => [...prev, { ...newContact, id: Date.now().toString() }]);
+    const updatedContacts = [...contacts, { ...newContact, id: Date.now().toString() }];
+    setContacts(updatedContacts);
     setNewContact({ name: "", phone: "", relationship: "" });
     setAddingContact(false);
+    
+    await SecureStore.setItemAsync("settings_contacts", JSON.stringify(updatedContacts));
   };
 
   const removeContact = (id: string) => {
     Alert.alert("Remove Contact", "Are you sure?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Remove", style: "destructive", onPress: () => setContacts((prev) => prev.filter((c) => c.id !== id)) },
+      { 
+        text: "Remove", 
+        style: "destructive", 
+        onPress: async () => {
+          const updatedContacts = contacts.filter((c) => c.id !== id);
+          setContacts(updatedContacts);
+          await SecureStore.setItemAsync("settings_contacts", JSON.stringify(updatedContacts));
+        } 
+      },
     ]);
+  };
+
+  const toggleVibration = async (val: boolean) => {
+    setSosVibration(val);
+    await SecureStore.setItemAsync("settings_vibration", val ? "true" : "false");
+  };
+
+  const toggleLocation = async (val: boolean) => {
+    setLocationSharing(val);
+    await SecureStore.setItemAsync("settings_location", val ? "true" : "false");
   };
 
   return (
@@ -83,7 +139,7 @@ export default function Settings() {
               placeholderTextColor="#666"
             />
           </View>
-          <TouchableOpacity style={styles.saveBtn}>
+          <TouchableOpacity style={styles.saveBtn} onPress={saveProfile}>
             <Text style={styles.saveBtnText}>Save Profile</Text>
           </TouchableOpacity>
         </View>
@@ -172,7 +228,7 @@ export default function Settings() {
             </View>
             <Switch
               value={sosVibration}
-              onValueChange={setSosVibration}
+              onValueChange={toggleVibration}
               trackColor={{ false: "#333", true: "#f97316" }}
               thumbColor="#000"
             />
@@ -185,7 +241,7 @@ export default function Settings() {
             </View>
             <Switch
               value={locationSharing}
-              onValueChange={setLocationSharing}
+              onValueChange={toggleLocation}
               trackColor={{ false: "#333", true: "#f97316" }}
               thumbColor="#000"
             />
