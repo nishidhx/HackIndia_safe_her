@@ -1,0 +1,77 @@
+safeher-backend/
+│
+├── cmd/                     # Application entrypoints
+│   └── server/
+│       └── main.go
+│
+├── internal/                # Private application code
+│
+│   ├── config/              # Environment configs
+│   │   └── config.go
+│
+│   ├── database/
+│   │   ├── postgres.go
+│   │   └── redis.go
+│
+│   ├── models/              # DB models
+│   │   ├── user.go
+│   │   ├── incident.go
+│   │   ├── risk_zone.go
+│   │   └── emergency_contact.go
+│
+│   ├── repositories/        # DB queries
+│   │   ├── user_repository.go
+│   │   ├── incident_repository.go
+│   │   └── risk_repository.go
+│
+│   ├── services/            # Business logic
+│   │   ├── auth_service.go
+│   │   ├── incident_service.go
+│   │   ├── route_service.go
+│   │   ├── sos_service.go
+│   │   └── risk_service.go
+│
+│   ├── handlers/            # HTTP handlers
+│   │   ├── auth_handler.go
+│   │   ├── incident_handler.go
+│   │   ├── route_handler.go
+│   │   └── sos_handler.go
+│
+│   ├── routes/              # API routes
+│   │   └── routes.go
+│
+│   ├── middleware/
+│   │   ├── auth_middleware.go
+│   │   ├── rate_limiter.go
+│   │   └── logger.go
+│
+│   ├── websocket/
+│   │   └── location_socket.go
+│
+│   └── utils/
+│       ├── geo_utils.go
+│       ├── risk_calculator.go
+│       └── response.go
+│
+├── pkg/                     # Reusable packages
+│   ├── jwt/
+│   │   └── jwt.go
+│   │
+│   ├── sms/
+│   │   └── twilio.go
+│   │
+│   └── maps/
+│       └── google_maps.go
+│
+├── migrations/              # DB migrations
+│   ├── 001_create_users.sql
+│   ├── 002_create_incidents.sql
+│   └── 003_create_risk_zones.sql
+│
+├── scripts/                 # Helper scripts
+│   └── seed_data.go
+│
+├── go.mod
+├── go.sum
+├── Dockerfile
+└── README.md
