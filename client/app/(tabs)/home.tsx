@@ -11,8 +11,12 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import SOSButton from "@/components/SOSButton";
+import * as Location from "expo-location";
+import * as SecureStore from "expo-secure-store";
 
 const { width, height } = Dimensions.get("window");
+
+const BASE_URL = "https://winfred-bearable-winterishly.ngrok-free.dev";
 
 const FEATURES = [
   {
@@ -341,7 +345,49 @@ const ns = StyleSheet.create({
 
 export default function Home() {
   const [nightMode, setNightMode] = useState(false);
+  const [riskData, setRiskData] = useState({ score: 0, level: "Loading...", incidentCount: 0 });
   const tipIndex = new Date().getHours() % TIPS.length;
+
+  useEffect(() => {
+    const fetchRiskScore = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setRiskData({ score: 0, level: "Location Denied", incidentCount: 0 });
+          return;
+        }
+
+        const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const token = await SecureStore.getItemAsync("session_token");
+
+        const response = await fetch(`${BASE_URL}/api/risk/score`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Cookie: token ? `session_token=${token}` : "",
+          },
+          body: JSON.stringify({
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setRiskData({
+            score: data.score,
+            level: data.level,
+            incidentCount: data.incident_count,
+          });
+        }
+      } catch (err) {
+        console.log("Failed to fetch dynamic risk score", err);
+        setRiskData({ score: 0, level: "Offline", incidentCount: 0 });
+      }
+    };
+    
+    fetchRiskScore();
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -366,11 +412,11 @@ export default function Home() {
         <View style={styles.riskCard}>
           <View style={styles.riskLeft}>
             <Text style={styles.riskLabel}>AREA RISK LEVEL</Text>
-            <Text style={styles.riskValue}>Moderate</Text>
-            <Text style={styles.riskDesc}>2 incidents reported nearby</Text>
+            <Text style={styles.riskValue}>{riskData.level}</Text>
+            <Text style={styles.riskDesc}>{riskData.incidentCount} incidents reported nearby</Text>
           </View>
           <View style={styles.riskScore}>
-            <Text style={styles.riskNumber}>42</Text>
+            <Text style={styles.riskNumber}>{riskData.score}</Text>
             <Text style={styles.riskMax}>/100</Text>
           </View>
         </View>

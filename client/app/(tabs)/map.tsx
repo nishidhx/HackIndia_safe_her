@@ -1,6 +1,8 @@
 import SOSButton from "@/components/SOSButton";
 import * as Location from "expo-location";
+import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Alert,
   Modal,
@@ -10,8 +12,10 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  StatusBar,
+  Platform,
 } from "react-native";
-import MapView, { Heatmap, Marker } from "react-native-maps";
+import MapView, { Heatmap, Marker, Polyline } from "react-native-maps";
 
 interface UnsafePoint {
   latitude: number;
@@ -40,6 +44,9 @@ const SEVERITY_LEVELS: { label: string; value: UnsafePoint["severity"]; color: s
 ];
 
 export default function Map() {
+  const insets = useSafeAreaInsets();
+  const androidSafeTop = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
+  const safeTopPadding = Math.max(insets.top, androidSafeTop);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [unsafePoints, setUnsafePoints] = useState<UnsafePoint[]>([
     { latitude: 28.47674989556479, longitude: 77.5016687437892, weight: 1 },
@@ -95,8 +102,52 @@ export default function Map() {
   // New point pending (from long press) — needs form fill before adding
   const [pendingPoint, setPendingPoint] = useState<{ latitude: number; longitude: number } | null>(null);
 
+  // Safest route state
+  const [routingMode, setRoutingMode] = useState(false);
+  const [safestRoute, setSafestRoute] = useState<{ latitude: number; longitude: number }[] | null>(null);
+  const [destinationPoint, setDestinationPoint] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  const fetchSafestRoute = async (destLat: number, destLng: number) => {
+    if (!location) return;
+    try {
+      const token = await SecureStore.getItemAsync("session_token");
+      const response = await fetch(`${BASE_URL}/api/risk/route`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: token ? `session_token=${token}` : "",
+        },
+        body: JSON.stringify({
+          origin_lat: location.coords.latitude,
+          origin_lng: location.coords.longitude,
+          dest_lat: destLat,
+          dest_lng: destLng,
+        }),
+      });
+
+      if (!response.ok) {
+        Alert.alert("Error", "Failed to fetch safest route");
+        return;
+      }
+
+      const data = await response.json();
+      if (data.status === "success" && data.coordinates) {
+        setSafestRoute(data.coordinates);
+      }
+    } catch (e) {
+      Alert.alert("Error", "Could not connect to routing service.");
+    }
+  };
+
   const handleLongPress = (event: any) => {
     const { latitude, longitude } = event.nativeEvent.coordinate;
+	
+    if (routingMode) {
+      setDestinationPoint({ latitude, longitude });
+      fetchSafestRoute(latitude, longitude);
+      return;
+    }
+
     setPendingPoint({ latitude, longitude });
     setSelectedPoint(null);
     setSelectedIndex(null);
@@ -147,14 +198,39 @@ export default function Map() {
           severity: severityToInt(severity ?? "low"),
         };
 
+        const token = await SecureStore.getItemAsync("session_token");
+
         const response = await fetch(`${BASE_URL}/api/risk/incident`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Cookie": token ? `session_token=${token}` : ""
+          },
           body: JSON.stringify(payload),
         });
 
         if (!response.ok) {
           throw new Error("Failed to report");
+        }
+
+        // Automatically save it as a raw Risk Zone mapped coordinate as well
+        const zonePayload = {
+          latitude: pendingPoint.latitude,
+          longitude: pendingPoint.longitude,
+          context: incidentType,
+        };
+
+        const zoneResponse = await fetch(`${BASE_URL}/api/risk/zone`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Cookie": token ? `session_token=${token}` : ""
+          },
+          body: JSON.stringify(zonePayload),
+        });
+
+        if (!zoneResponse.ok) {
+          console.warn("Failed to save parallel risk zone coordinates");
         }
 
         // Adding a new point
@@ -267,6 +343,7 @@ export default function Map() {
       <MapView
         style={Styles.map}
         customMapStyle={darkMapStyle}
+        mapPadding={{ top: safeTopPadding + 10, right: 0, bottom: 0, left: 0 }}
         onLongPress={handleLongPress}
         showsUserLocation
         initialRegion={{
@@ -285,7 +362,42 @@ export default function Map() {
           />
         ))}
         {unsafePoints.length > 0 && <Heatmap points={validPoints} radius={40} />}
+		
+        {destinationPoint && (
+          <Marker 
+            coordinate={destinationPoint} 
+            pinColor="#3b82f6" 
+            title="Destination" 
+          />
+        )}
+        {safestRoute && safestRoute.length > 0 && (
+          <Polyline 
+            coordinates={safestRoute} 
+            strokeColor="#4ade80" 
+            strokeWidth={5} 
+          />
+        )}
       </MapView>
+
+      {/* Routing Mode Toggle */}
+      <TouchableOpacity 
+        style={[
+          Styles.routeToggleBtn, 
+          { top: safeTopPadding + 20 },
+          routingMode && Styles.routeToggleBtnActive
+        ]}
+        onPress={() => {
+          setRoutingMode(!routingMode);
+          if (routingMode) {
+            setSafestRoute(null);
+            setDestinationPoint(null);
+          }
+        }}
+      >
+        <Text style={Styles.routeToggleText}>
+          {routingMode ? "Cancel Routing" : "Find Safest Route"}
+        </Text>
+      </TouchableOpacity>
 
       {/* Incident Report Modal */}
       <Modal
@@ -403,6 +515,31 @@ const Styles = StyleSheet.create({
   map: {
     width: "100%",
     height: "100%",
+  },
+  routeToggleBtn: {
+    position: "absolute",
+    alignSelf: "center",
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: "#334155",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  routeToggleBtnActive: {
+    backgroundColor: "#3b82f6",
+    borderColor: "#2563eb",
+  },
+  routeToggleText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
+    letterSpacing: 0.5,
   },
   modalOverlay: {
     flex: 1,
