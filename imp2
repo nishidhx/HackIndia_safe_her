@@ -1,0 +1,5 @@
+# Implement Safety Assistant Chat
+
+- [x] Create chat UI in [help.tsx](file:///c:/Users/itz_n/OneDrive/Desktop/hackindia_safe_her/HackIndia_safe_her/client/app/%28tabs%29/help.tsx)
+- [x] Implement simulated AI response logic for safety queries
+- [x] Register `help` tab in [_layout.tsx](file:///c:/Users/itz_n/OneDrive/Desktop/hackindia_safe_her/HackIndia_safe_her/client/app/%28tabs%29/_layout.tsx)
