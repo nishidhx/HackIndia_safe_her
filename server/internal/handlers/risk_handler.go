@@ -39,10 +39,58 @@ func (h *RiskHandler) GetRiskScore(w http.ResponseWriter, r *http.Request) {
 	var req RiskRequest
 	json.NewDecoder(r.Body).Decode(&req)
 
-	score := h.service.GetRiskScore(req.Latitude, req.Longitude)
+	if req.Latitude == 0 && req.Longitude == 0 {
+		http.Error(w, "Valid latitude and longitude required", http.StatusBadRequest)
+		return
+	}
 
+	var incidents []struct {
+		Latitude  float64
+		Longitude float64
+		Severity  int
+	}
+	if err := h.db.Table("incidents").Select("latitude", "longitude", "severity").Find(&incidents).Error; err != nil {
+		http.Error(w, "Failed to retrieve incidents", http.StatusInternalServerError)
+		return
+	}
+
+	riskScore := 0
+	incidentCount := 0
+
+	for _, inc := range incidents {
+		dist := haversineDistance(req.Latitude, req.Longitude, inc.Latitude, inc.Longitude)
+		if dist <= 5000 { // within 5km
+			incidentCount++
+			sev := inc.Severity
+			if sev <= 0 { sev = 1 }
+			if dist <= 1000 { // within 1km
+				riskScore += sev * 15
+			} else {
+				riskScore += sev * 5
+			}
+		}
+	}
+
+	if riskScore > 100 {
+		riskScore = 100
+	}
+
+	level := "Low"
+	if riskScore > 30 {
+		level = "Moderate"
+	}
+	if riskScore > 70 {
+		level = "High"
+	}
+	if riskScore > 90 {
+		level = "Critical"
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"risk_score": score,
+		"score":          riskScore,
+		"level":          level,
+		"incident_count": incidentCount,
 	})
 }
 
@@ -144,33 +192,33 @@ func (h *RiskHandler) AddIncident(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid input", http.StatusBadRequest)
 		return
-
-		claims, ok := r.Context().Value(middlewares.UserClaimsKey).(*jwt.TokenPayload)
-		if !ok || claims == nil {
-			http.Error(w, "Unauthorized: missing valid token claims", http.StatusUnauthorized)
-			return
-		}
-		userId := claims.UserID
-
-		incident := map[string]interface{}{
-			"user_id":     userId,
-			"latitude":    req.Latitude,
-			"longitude":   req.Longitude,
-			"type":        req.Type,
-			"description": req.Description,
-			"severity":    req.Severity,
-		}
-
-		if err := h.db.Table("incidents").Create(&incident).Error; err != nil {
-			http.Error(w, "Failed to store incident in DB", http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"status":  "success",
-			"message": "Incident reported",
-		})
 	}
+
+	claims, ok := r.Context().Value(middlewares.UserClaimsKey).(*jwt.TokenPayload)
+	if !ok || claims == nil {
+		http.Error(w, "Unauthorized: missing valid token claims", http.StatusUnauthorized)
+		return
+	}
+	userId := claims.UserID
+
+	incident := map[string]interface{}{
+		"user_id":     userId,
+		"latitude":    req.Latitude,
+		"longitude":   req.Longitude,
+		"type":        req.Type,
+		"description": req.Description,
+		"severity":    req.Severity,
+	}
+
+	if err := h.db.Table("incidents").Create(&incident).Error; err != nil {
+		http.Error(w, "Failed to store incident in DB", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":  "success",
+		"message": "Incident reported",
+	})
 }

@@ -76,9 +76,10 @@ import (
 func SetupRoutes(db *gorm.DB) *mux.Router {
 	router := mux.NewRouter()
 
-	// Handlers
+	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(db)
 	riskHandler := handlers.NewRiskHandler(db)
+	routeHandler := handlers.NewRouteHandler(db)
 
 	// =========================
 	// Auth Routes
@@ -108,6 +109,9 @@ func SetupRoutes(db *gorm.DB) *mux.Router {
 
 	// Save Incident
 	apiRouter.HandleFunc("/risk/incident", riskHandler.AddIncident).Methods(http.MethodPost, http.MethodOptions)
+
+	// Get Safest Route
+	apiRouter.HandleFunc("/risk/route", routeHandler.GetSafestRoute).Methods(http.MethodPost, http.MethodOptions)
 
 	// =========================
 	// WebSocket
