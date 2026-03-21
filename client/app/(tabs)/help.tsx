@@ -105,10 +105,10 @@ export default function Help() {
         <IconSymbol name="shield.fill" size={24} color="#f97316" />
         <Text style={styles.headerTitle}>Safety Assistant Chat</Text>
       </View>
-      
-      <KeyboardAvoidingView 
-        style={styles.chatContainer} 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+
+      <KeyboardAvoidingView
+        style={styles.chatContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20}
       >
         <FlatList

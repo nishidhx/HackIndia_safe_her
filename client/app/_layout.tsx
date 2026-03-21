@@ -3,6 +3,8 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SecureStore from "expo-secure-store";
+import VoiceListener from "@/components/VoiceListener";
+// import VoiceListener from "../components/VoiceListener";
 
 export default function RootLayout() {
   const router = useRouter();
@@ -36,6 +38,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <StatusBar style="light" translucent={false} backgroundColor="#000000" />
+      <VoiceListener /> 
       <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

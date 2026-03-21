@@ -12,6 +12,10 @@
       "supportsTablet": true
     },
     "android": {
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.INTERNET"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -41,7 +45,22 @@
         }
       ],
       "expo-maps",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "@react-native-voice/voice",
+        {
+          "microphonePermission": "Allow SafeHer to access your microphone to listen for SOS keywords.",
+          "speechRecognitionPermission": "Allow SafeHer to process your voice to trigger SOS."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
